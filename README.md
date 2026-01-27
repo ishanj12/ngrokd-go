@@ -37,19 +37,17 @@ dialer, _ := ngrokd.NewDialer(ctx, ngrokd.Config{
 })
 defer dialer.Close()
 
-// Discover which endpoints are ngrok-bound
-endpoints, _ := dialer.DiscoverEndpoints(ctx)
+// Populate endpoint cache
+dialer.DiscoverEndpoints(ctx)
 
-// Plug into http.Client
+// Create HTTP client with ngrok-aware transport
 client := &http.Client{
     Transport: &http.Transport{DialContext: dialer.DialContext},
 }
 
-// Requests to discovered endpoints route through ngrok
-for _, ep := range endpoints {
-    resp, _ := client.Get(ep.URL)
-    resp.Body.Close()
-}
+// Use normally - SDK routes ngrok endpoints through the tunnel
+resp, _ := client.Get("https://my-service.example.com/api")
+resp.Body.Close()
 ```
 
 ## Configuration

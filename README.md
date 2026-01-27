@@ -73,6 +73,9 @@ ngrokd.Config{
         MaxRetries:     3,
         InitialBackoff: 100 * time.Millisecond,
     },
+
+    // Limit which endpoints this operator can access (default: all)
+    EndpointSelectors: []string{"endpoint.metadata.name == 'my-service'"},
 }
 ```
 

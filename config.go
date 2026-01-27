@@ -53,6 +53,11 @@ type Config struct {
 	// If nil, DialContext returns an error for unknown endpoints
 	FallbackDialer ContextDialer
 
+	// EndpointSelectors are CEL expressions that filter which endpoints this operator can access.
+	// Default: ["true"] (matches all endpoints)
+	// Example: ["endpoint.metadata.name == 'my-service'"]
+	EndpointSelectors []string
+
 	// RefreshInterval enables background endpoint discovery.
 	// If > 0, a goroutine periodically calls DiscoverEndpoints.
 	// Default: 0 (disabled)
@@ -103,6 +108,9 @@ func (c *Config) setDefaults() {
 	}
 	if c.DialTimeout == 0 {
 		c.DialTimeout = 30 * time.Second
+	}
+	if len(c.EndpointSelectors) == 0 {
+		c.EndpointSelectors = []string{"true"}
 	}
 	c.RetryConfig.setDefaults()
 }

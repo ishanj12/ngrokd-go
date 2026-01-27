@@ -20,14 +20,16 @@ func defaultCertDir() string {
 }
 
 type certProvisioner struct {
-	store     CertStore
-	apiClient *apiClient
+	store             CertStore
+	apiClient         *apiClient
+	endpointSelectors []string
 }
 
-func newCertProvisioner(store CertStore, apiClient *apiClient) *certProvisioner {
+func newCertProvisioner(store CertStore, apiClient *apiClient, endpointSelectors []string) *certProvisioner {
 	return &certProvisioner{
-		store:     store,
-		apiClient: apiClient,
+		store:             store,
+		apiClient:         apiClient,
+		endpointSelectors: endpointSelectors,
 	}
 }
 
@@ -89,14 +91,13 @@ func (p *certProvisioner) provisionCertificate(ctx context.Context) (tls.Certifi
 	})
 
 	// Register with ngrok API
-	// Use endpoint_selectors: ["true"] to match all kubernetes-bound endpoints
 	operator, err := p.apiClient.CreateOperator(ctx, &operatorCreateRequest{
 		Description:     "ngrokd-sdk",
 		Metadata:        `{"type":"sdk"}`,
 		EnabledFeatures: []string{"bindings"},
 		Region:          "global",
 		Binding: &operatorBindingCreate{
-			EndpointSelectors: []string{"true"},
+			EndpointSelectors: p.endpointSelectors,
 			CSR:               string(csrPEM),
 		},
 	})

@@ -59,7 +59,7 @@ func NewDialer(ctx context.Context, cfg Config) (*Dialer, error) {
 		d.operatorID = cfg.OperatorID
 	} else if cfg.APIKey != "" {
 		// Auto-provision certificate using CertStore
-		provisioner := newCertProvisioner(cfg.CertStore, d.apiClient)
+		provisioner := newCertProvisioner(cfg.CertStore, d.apiClient, cfg.EndpointSelectors)
 		tlsCert, d.operatorID, err = provisioner.EnsureCertificate(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("failed to provision certificate: %w", err)

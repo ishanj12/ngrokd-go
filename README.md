@@ -22,43 +22,57 @@ go get github.com/ishanj12/ngrokd-go
 ## Usage
 
 ```go
+package main
+
 import (
     "context"
+    "fmt"
+    "io"
     "net"
     "net/http"
     "os"
+    "time"
 
     ngrokd "github.com/ishanj12/ngrokd-go"
-    "your-org/api"  // OpenAPI-generated client
 )
 
-ctx := context.Background()
+func main() {
+    ctx := context.Background()
 
-// Create ngrok-aware dialer
-dialer, _ := ngrokd.NewDialer(ctx, ngrokd.Config{
-    APIKey:         os.Getenv("NGROK_API_KEY"),
-    FallbackDialer: &net.Dialer{},
-})
-defer dialer.Close()
+    // Create ngrok-aware dialer
+    dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
+        APIKey:         os.Getenv("NGROK_API_KEY"),
+        FallbackDialer: &net.Dialer{},
+    })
+    if err != nil {
+        panic(err)
+    }
+    defer dialer.Close()
 
-dialer.DiscoverEndpoints(ctx)
+    // Discover ngrok-bound endpoints
+    endpoints, _ := dialer.DiscoverEndpoints(ctx)
+    fmt.Printf("Found %d endpoints\n", len(endpoints))
+    for _, ep := range endpoints {
+        fmt.Printf("  - %s\n", ep.URL)
+    }
 
-// Create HTTP client with ngrok transport
-httpClient := &http.Client{
-    Transport: &http.Transport{DialContext: dialer.DialContext},
+    // Create HTTP client with ngrok transport
+    httpClient := &http.Client{
+        Transport: &http.Transport{DialContext: dialer.DialContext},
+        Timeout:   10 * time.Second,
+    }
+
+    // Make request - routes through ngrok if endpoint is in cache
+    if len(endpoints) > 0 {
+        resp, err := httpClient.Get(endpoints[0].URL)
+        if err != nil {
+            panic(err)
+        }
+        defer resp.Body.Close()
+        body, _ := io.ReadAll(resp.Body)
+        fmt.Printf("Status: %d\nBody: %s\n", resp.StatusCode, string(body))
+    }
 }
-
-// Inject into OpenAPI client
-client, _ := api.NewClient(
-    os.Getenv("API_URL"),  // URL from config
-    api.WithHTTPClient(httpClient),
-)
-
-// Make requests - SDK checks endpoint cache and routes automatically:
-// - ngrok-bound hostname → mTLS tunnel to ngrok cloud
-// - unknown hostname → FallbackDialer (standard internet)
-resp, _ := httpClient.Get(os.Getenv("API_URL"))
-resp.Body.Close()
 ```
 
 ## Configuration

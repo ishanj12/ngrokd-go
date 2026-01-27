@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	ngrokd "github.com/ishanjain/ngrokd-go-sdk"
+	ngrokd "github.com/ishanj12/ngrokd-gosdk"
 )
 
 // ============================================================

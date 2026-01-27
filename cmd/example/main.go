@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	ngrokd "github.com/ishanj12/ngrokd-gosdk"
+	ngrokd "github.com/ishanj12/ngrokd-go"
 )
 
 func main() {

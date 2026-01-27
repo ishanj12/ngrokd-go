@@ -1,4 +1,4 @@
-module github.com/ishanj12/ngrokd-gosdk
+module github.com/ishanj12/ngrokd-go
 
 go 1.21
 

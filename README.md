@@ -15,7 +15,7 @@ The SDK provisions its own mTLS certificate by generating a private key locally 
 ## Installation
 
 ```bash
-go get github.com/ishanj12/ngrokd-gosdk
+go get github.com/ishanj12/ngrokd-go
 ```
 
 ## Usage

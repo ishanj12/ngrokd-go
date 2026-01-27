@@ -47,12 +47,17 @@ httpClient := &http.Client{
     Transport: &http.Transport{DialContext: dialer.DialContext},
 }
 
-// Inject into OpenAPI client - URL from config
+// Inject into OpenAPI client
 client, _ := api.NewClient(
-    os.Getenv("API_URL"),
+    os.Getenv("API_URL"),  // URL from config
     api.WithHTTPClient(httpClient),
 )
-// SDK routes requests based on endpoint cache
+
+// Make requests - SDK checks endpoint cache and routes automatically:
+// - ngrok-bound hostname → mTLS tunnel to ngrok cloud
+// - unknown hostname → FallbackDialer (standard internet)
+resp, _ := httpClient.Get(os.Getenv("API_URL") + "/health")
+resp.Body.Close()
 ```
 
 ## Configuration

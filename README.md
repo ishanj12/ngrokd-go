@@ -56,7 +56,7 @@ client, _ := api.NewClient(
 // Make requests - SDK checks endpoint cache and routes automatically:
 // - ngrok-bound hostname → mTLS tunnel to ngrok cloud
 // - unknown hostname → FallbackDialer (standard internet)
-resp, _ := httpClient.Get(os.Getenv("API_URL") + "/health")
+resp, _ := httpClient.Get(os.Getenv("API_URL"))
 resp.Body.Close()
 ```
 

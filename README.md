@@ -52,9 +52,7 @@ client, _ := api.NewClient(
     os.Getenv("API_URL"),
     api.WithHTTPClient(httpClient),
 )
-
-// Use normally - SDK routes based on endpoint cache
-client.DoSomething(ctx)
+// SDK routes requests based on endpoint cache
 ```
 
 ## Configuration

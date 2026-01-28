@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
 	"net/http"
 	"time"
 
@@ -22,10 +21,8 @@ func run(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	// Create ngrokd dialer 
-	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
-		DefaultDialer: &net.Dialer{},
-	})
+	// Create ngrokd dialer (uses NGROK_API_KEY env var)
+	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{})
 	if err != nil {
 		return err
 	}

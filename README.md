@@ -19,7 +19,6 @@ package main
 
 import (
 	"context"
-	"net"
 	"net/http"
 
 	ngrokd "github.com/ishanj12/ngrokd-go"
@@ -29,9 +28,7 @@ func main() {
 	ctx := context.Background()
 
 	// Create ngrokd dialer (uses NGROK_API_KEY env var)
-	dialer, _ := ngrokd.NewDialer(ctx, ngrokd.Config{
-		DefaultDialer: &net.Dialer{},
-	})
+	dialer, _ := ngrokd.NewDialer(ctx, ngrokd.Config{})
 	defer dialer.Close()
 
 	// Discover private endpoints
@@ -56,7 +53,7 @@ ngrokd.Config{
 	// Required: ngrok API key (or set NGROK_API_KEY env var)
 	APIKey: "your-api-key",
 
-	// Routes non-ngrok traffic to this dialer
+	// Routes non-ngrok traffic to standard dialer (default: &net.Dialer{})
 	DefaultDialer: &net.Dialer{},
 
 	// Background endpoint refresh interval (default: 30s)

@@ -21,7 +21,7 @@ type Dialer struct {
 	operatorID     string
 	apiClient      *apiClient
 	logger         logr.Logger
-	fallbackDialer ContextDialer
+	defaultDialer ContextDialer
 
 	mu        sync.RWMutex
 	endpoints map[string]Endpoint // hostname -> endpoint cache
@@ -40,7 +40,7 @@ func NewDialer(ctx context.Context, cfg Config) (*Dialer, error) {
 		config:         cfg,
 		endpoints:      make(map[string]Endpoint),
 		logger:         cfg.Logger,
-		fallbackDialer: cfg.FallbackDialer,
+		defaultDialer: cfg.DefaultDialer,
 		closeCh:        make(chan struct{}),
 	}
 
@@ -126,8 +126,8 @@ func (d *Dialer) Dial(network, address string) (net.Conn, error) {
 }
 
 // DialContext connects to the address via ngrok bound endpoint with context
-// If the endpoint is not a known ngrok endpoint and FallbackDialer is set,
-// the connection is routed through the fallback dialer instead.
+// If the endpoint is not a known ngrok endpoint and DefaultDialer is set,
+// the connection is routed through the default dialer instead.
 func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	if d.closed.Load() {
 		return nil, ErrClosed
@@ -140,11 +140,11 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 
 	// Check if this is a known ngrok endpoint
 	if !d.isKnownEndpoint(hostname) {
-		if d.fallbackDialer != nil {
+		if d.defaultDialer != nil {
 			if d.logger.Enabled() {
-				d.logger.V(1).Info("Using fallback dialer", "hostname", hostname)
+				d.logger.V(1).Info("Using default dialer", "hostname", hostname)
 			}
-			return d.fallbackDialer.DialContext(ctx, network, address)
+			return d.defaultDialer.DialContext(ctx, network, address)
 		}
 		return nil, &EndpointNotFoundError{Hostname: hostname}
 	}

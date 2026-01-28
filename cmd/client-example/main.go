@@ -106,7 +106,7 @@ func main() {
 	// - RetryConfig: Retry transient failures with exponential backoff
 	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
 		APIKey:         apiKey,
-		FallbackDialer: &net.Dialer{}, // Use standard dialer for non-ngrok endpoints
+		DefaultDialer: &net.Dialer{}, // Use standard dialer for non-ngrok endpoints
 		RetryConfig: ngrokd.RetryConfig{
 			MaxRetries:     3,
 			InitialBackoff: 100 * time.Millisecond,

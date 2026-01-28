@@ -49,9 +49,9 @@ type Config struct {
 	// Logger for structured logging
 	Logger logr.Logger
 
-	// FallbackDialer is used for addresses not matching known ngrok endpoints
+	// DefaultDialer is used for addresses not matching known ngrok endpoints
 	// If nil, DialContext returns an error for unknown endpoints
-	FallbackDialer ContextDialer
+	DefaultDialer ContextDialer
 
 	// EndpointSelectors are CEL expressions that filter which endpoints this operator can access.
 	// Default: ["true"] (matches all endpoints)

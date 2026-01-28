@@ -28,7 +28,7 @@ func main() {
 	// Uses FileStore by default (~/.ngrokd-go/certs) to reuse operator across runs
 	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
 		APIKey:         apiKey,
-		FallbackDialer: &net.Dialer{},
+		DefaultDialer: &net.Dialer{},
 	})
 	if err != nil {
 		fmt.Printf("Failed to create dialer: %v\n", err)

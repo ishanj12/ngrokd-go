@@ -75,7 +75,7 @@ func TestFallbackDialer(t *testing.T) {
 		endpoints:      map[string]Endpoint{
 			"known.ngrok.app": {Hostname: "known.ngrok.app", Port: 443},
 		},
-		fallbackDialer: mock,
+		defaultDialer: mock,
 	}
 
 	// Unknown endpoint should use fallback

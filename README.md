@@ -8,7 +8,7 @@ This SDK lets your Go application connect to services exposed through ngrok's Ku
 
 1. **Discovering endpoints** - Polls the ngrok API to learn which hostnames are ngrok-bound
 2. **Establishing mTLS connections** - Connects to ngrok's cloud service with a client certificate via mTLS
-3. **Routing intelligently** - ngrok traffic uses the ngrokd dialer, everything else uses your fallback dialer
+3. **Routing intelligently** - ngrok traffic uses the ngrokd dialer, everything else uses your default dialer
 4. **Providing a DialContext** - Plug into `http.Transport` to make any HTTP client ngrok-aware
 
 The SDK provisions its own mTLS certificate by generating a private key locally and having ngrok sign it. The private key never leaves your machine.
@@ -42,7 +42,7 @@ func main() {
     // Create ngrok-aware dialer
     dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
         APIKey:         os.Getenv("NGROK_API_KEY"),
-        FallbackDialer: &net.Dialer{},
+        DefaultDialer: &net.Dialer{},
     })
     if err != nil {
         panic(err)
@@ -80,7 +80,7 @@ func main() {
 ```go
 ngrokd.Config{
     APIKey:          "your-api-key",
-    FallbackDialer:  &net.Dialer{},       // handles non-ngrok traffic
+    DefaultDialer:  &net.Dialer{},       // handles non-ngrok traffic
     PollingInterval: 30 * time.Second,    // background endpoint refresh (default)
     RetryConfig: ngrokd.RetryConfig{
         MaxRetries:     3,

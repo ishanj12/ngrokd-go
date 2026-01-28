@@ -21,19 +21,14 @@ func run(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	// Create ngrokd dialer 
+	// Create ngrokd dialer (uses NGROK_API_KEY env var)
 	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{})
 	if err != nil {
 		return err
 	}
 	defer dialer.Close()
 
-	// Discover private endpoints 
-	if _, err := dialer.DiscoverEndpoints(ctx); err != nil {
-		return err
-	}
-
-    // Create HTTP client using ngrokd dialer
+	// Create HTTP client using ngrokd dialer
 	httpClient := &http.Client{
 		Transport: &http.Transport{DialContext: dialer.DialContext},
 		Timeout:   30 * time.Second,

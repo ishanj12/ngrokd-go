@@ -125,9 +125,9 @@ func (d *Dialer) Dial(network, address string) (net.Conn, error) {
 	return d.DialContext(context.Background(), network, address)
 }
 
-// DialContext connects to the address via ngrok bound endpoint with context
-// If the endpoint is not a known ngrok endpoint and DefaultDialer is set,
-// the connection is routed through the default dialer instead.
+// DialContext connects to the address via ngrok private endpoint with context.
+// If the endpoint is not in cache, it discovers endpoints first.
+// If still not found and DefaultDialer is set, routes through default dialer.
 func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	if d.closed.Load() {
 		return nil, ErrClosed
@@ -138,7 +138,17 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 		return nil, fmt.Errorf("invalid address %q: %w", address, err)
 	}
 
-	// Check if this is a known ngrok endpoint
+	// Check if this is a known ngrok endpoint, discover if not
+	if !d.isKnownEndpoint(hostname) {
+		// Try discovering endpoints
+		if _, err := d.DiscoverEndpoints(ctx); err != nil {
+			if d.logger.Enabled() {
+				d.logger.Error(err, "Failed to discover endpoints")
+			}
+		}
+	}
+
+	// Check again after discovery
 	if !d.isKnownEndpoint(hostname) {
 		if d.defaultDialer != nil {
 			if d.logger.Enabled() {

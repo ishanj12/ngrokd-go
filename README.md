@@ -31,9 +31,6 @@ func main() {
 	dialer, _ := ngrokd.NewDialer(ctx, ngrokd.Config{})
 	defer dialer.Close()
 
-	// Discover private endpoints
-	dialer.DiscoverEndpoints(ctx)
-
 	// Create HTTP client that routes through ngrok
 	client := &http.Client{
 		Transport: &http.Transport{DialContext: dialer.DialContext},

@@ -22,14 +22,16 @@ go get github.com/ishanj12/ngrokd-go
 
 ## Quickstart
 
-The following example discovers kubernetes-bound endpoints and lists them.
+This example shows a complete end-to-end flow with a server creating an internal endpoint and a client connecting to it.
 
-You need an ngrok API key to run this example, which you can get from the [ngrok dashboard](https://dashboard.ngrok.com/api).
+### Server
 
-Run this example with the following command:
+The server uses [ngrok-go](https://github.com/ngrok/ngrok-go) to create an internal agent endpoint that forwards to a hello world app.
+
+Run the server with:
 
 ```sh
-NGROK_API_KEY=xxxx go run examples/basic/main.go
+NGROK_AUTHTOKEN=xxxx go run examples/server/main.go
 ```
 
 ```go
@@ -39,78 +41,101 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
+	"os/signal"
+	"syscall"
+
+	"golang.ngrok.com/ngrok/v2"
+)
+
+func main() {
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer cancel()
+
+	// Start hello world server on :8080
+	go http.ListenAndServe(":8080", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, "Hello from ngrokd-go!")
+	}))
+
+	// Create internal agent endpoint (.internal = only accessible via binding ingress)
+	fwd, err := ngrok.Forward(ctx,
+		ngrok.WithUpstream("http://localhost:8080"),
+		ngrok.WithURL("https://hello-server.internal"),
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Println("Internal endpoint online:", fwd.URL())
+	<-fwd.Done()
+}
+```
+
+### Client
+
+The client uses ngrokd-go to discover the internal endpoint and dial into it.
+
+Run the client with:
+
+```sh
+NGROK_API_KEY=xxxx go run examples/client/main.go
+```
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"log"
 	"net"
+	"net/http"
 	"time"
 
 	ngrokd "github.com/ishanj12/ngrokd-go"
 )
 
 func main() {
-	if err := run(context.Background()); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func run(ctx context.Context) error {
-	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
-	// Create ngrokd dialer using NGROK_API_KEY environment variable
+	// Create ngrokd dialer (uses NGROK_API_KEY env var)
 	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
 		DefaultDialer: &net.Dialer{},
 	})
 	if err != nil {
-		return err
+		log.Fatal(err)
 	}
 	defer dialer.Close()
 
-	log.Println("Operator ID:", dialer.OperatorID())
-
 	// Discover kubernetes-bound endpoints
-	endpoints, err := dialer.DiscoverEndpoints(ctx)
-	if err != nil {
-		return err
+	endpoints, _ := dialer.DiscoverEndpoints(ctx)
+	log.Printf("Found %d endpoint(s)", len(endpoints))
+
+	// Create HTTP client with ngrokd transport
+	httpClient := &http.Client{
+		Transport: &http.Transport{DialContext: dialer.DialContext},
 	}
 
-	fmt.Printf("Found %d endpoint(s):\n", len(endpoints))
+	// Connect to discovered endpoints
 	for _, ep := range endpoints {
-		fmt.Printf("  - %s (%s)\n", ep.URL, ep.Proto)
+		resp, err := httpClient.Get(ep.URL)
+		if err != nil {
+			log.Printf("Error: %v", err)
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		fmt.Printf("Status: %d\nBody: %s\n", resp.StatusCode, string(body))
 	}
-
-	return nil
 }
-```
-
-## HTTP Client
-
-Use the dialer with any HTTP client by plugging it into `http.Transport`:
-
-```go
-dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
-	DefaultDialer: &net.Dialer{},
-})
-if err != nil {
-	return err
-}
-defer dialer.Close()
-
-// Discover endpoints first
-endpoints, _ := dialer.DiscoverEndpoints(ctx)
-
-// Create HTTP client with ngrokd transport
-httpClient := &http.Client{
-	Transport: &http.Transport{DialContext: dialer.DialContext},
-}
-
-// Requests to discovered endpoints route through ngrok
-// Other requests use DefaultDialer
-resp, err := httpClient.Get(endpoints[0].URL)
 ```
 
 ## Examples
 
-- [Basic endpoint discovery](./examples/basic/) - List kubernetes-bound endpoints.
-- [HTTP client](./examples/http-client/) - Make HTTP requests to discovered endpoints.
+- [Server](./examples/server/) - Create an internal agent endpoint with ngrok-go.
+- [Client](./examples/client/) - Discover and dial endpoints with ngrokd-go.
 
 ## Configuration
 

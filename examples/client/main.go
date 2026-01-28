@@ -22,7 +22,7 @@ func run(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
-	// Create ngrokd dialer using NGROK_API_KEY environment variable
+	// Create ngrokd dialer (uses NGROK_API_KEY env var)
 	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
 		DefaultDialer:   &net.Dialer{},
 		PollingInterval: 10 * time.Second,
@@ -41,9 +41,12 @@ func run(ctx context.Context) error {
 	}
 
 	if len(endpoints) == 0 {
-		log.Println("No endpoints found")
+		log.Println("No endpoints found. Run server first:")
+		log.Println("  NGROK_AUTHTOKEN=xxx go run examples/server/main.go")
 		return nil
 	}
+
+	log.Printf("Found %d endpoint(s)", len(endpoints))
 
 	// Create HTTP client with ngrokd transport
 	httpClient := &http.Client{
@@ -51,7 +54,6 @@ func run(ctx context.Context) error {
 		Timeout:   30 * time.Second,
 	}
 
-	// Make requests to discovered endpoints
 	for _, ep := range endpoints {
 		log.Printf("Connecting to %s...", ep.URL)
 
@@ -64,8 +66,7 @@ func run(ctx context.Context) error {
 		body, _ := io.ReadAll(resp.Body)
 		resp.Body.Close()
 
-		fmt.Printf("  Status: %d\n", resp.StatusCode)
-		fmt.Printf("  Body: %s\n", string(body))
+		fmt.Printf("  Status: %d\n  Body: %s\n", resp.StatusCode, string(body))
 	}
 
 	return nil

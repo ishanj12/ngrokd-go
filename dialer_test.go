@@ -7,18 +7,19 @@ import (
 )
 
 func TestParseAddress(t *testing.T) {
+	// Test cases for kubernetes-bound endpoint URL format: [http|tcp]://name.namespace[:port]
 	tests := []struct {
 		input    string
 		hostname string
 		port     int
 		wantErr  bool
 	}{
-		{"my-app.ngrok.app", "my-app.ngrok.app", 443, false},
-		{"my-app.ngrok.app:8080", "my-app.ngrok.app", 8080, false},
-		{"https://my-app.ngrok.app", "my-app.ngrok.app", 443, false},
-		{"http://my-app.ngrok.app", "my-app.ngrok.app", 80, false},
-		{"tls://my-app.ngrok.app", "my-app.ngrok.app", 443, false},
-		{"https://my-app.ngrok.app:9000", "my-app.ngrok.app", 9000, false},
+		{"app.example", "app.example", 80, false},
+		{"app.example:8080", "app.example", 8080, false},
+		{"http://app.example", "app.example", 80, false},
+		{"http://app.example:9000", "app.example", 9000, false},
+		{"tcp://app.example:443", "app.example", 443, false},
+		{"tcp://app.example", "", 0, true}, // tcp requires port
 	}
 
 	for _, tt := range tests {
@@ -41,12 +42,12 @@ func TestParseAddress(t *testing.T) {
 func TestIsKnownEndpoint(t *testing.T) {
 	d := &Dialer{
 		endpoints: map[string]Endpoint{
-			"my-service.ngrok.app": {Hostname: "my-service.ngrok.app", Port: 443},
+			"app.example": {Hostname: "app.example", Port: 80},
 		},
 	}
 
-	if !d.isKnownEndpoint("my-service.ngrok.app") {
-		t.Error("expected my-service.ngrok.app to be known")
+	if !d.isKnownEndpoint("app.example") {
+		t.Error("expected app.example to be known")
 	}
 
 	if d.isKnownEndpoint("unknown.example.com") {
@@ -72,15 +73,15 @@ func TestFallbackDialer(t *testing.T) {
 	mock := &mockDialer{}
 
 	d := &Dialer{
-		endpoints:      map[string]Endpoint{
-			"known.ngrok.app": {Hostname: "known.ngrok.app", Port: 443},
+		endpoints: map[string]Endpoint{
+			"known.example": {Hostname: "known.example", Port: 80},
 		},
 		defaultDialer: mock,
 	}
 
 	// Unknown endpoint should use fallback
 	ctx := context.Background()
-	conn, err := d.DialContext(ctx, "tcp", "unknown.example.com:443")
+	conn, err := d.DialContext(ctx, "tcp", "unknown.example:80")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -89,8 +90,8 @@ func TestFallbackDialer(t *testing.T) {
 	if !mock.called {
 		t.Error("expected fallback dialer to be called")
 	}
-	if mock.address != "unknown.example.com:443" {
-		t.Errorf("expected address unknown.example.com:443, got %s", mock.address)
+	if mock.address != "unknown.example:80" {
+		t.Errorf("expected address unknown.example:80, got %s", mock.address)
 	}
 }
 
@@ -101,7 +102,7 @@ func TestNoFallbackReturnsError(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	_, err := d.DialContext(ctx, "tcp", "unknown.example.com:443")
+	_, err := d.DialContext(ctx, "tcp", "unknown.example:80")
 	if err == nil {
 		t.Error("expected error for unknown endpoint with no fallback")
 	}

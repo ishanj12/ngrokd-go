@@ -7,21 +7,24 @@ import (
 	"strings"
 )
 
-// Endpoint represents a kubernetes-bound endpoint in ngrok
+// Endpoint represents a kubernetes-bound endpoint in ngrok.
+// URL format: [http|tcp]://name.namespace[:port]
+// Only http and tcp schemes are supported (https/tls are invalid).
+// Hostnames must be exactly two parts separated by a dot (e.g., app.example).
 type Endpoint struct {
 	ID       string
 	Hostname string
-	Proto    string // "http" or "tcp" (https/tls not supported for k8s bindings)
-	Port     int
+	Proto    string // "http" or "tcp"
+	Port     int    // required for tcp, optional for http (defaults to 80)
 	URL      string
 }
 
-// parseAddress parses an address string into hostname and port
+// parseAddress parses an address string into hostname and port.
+// Kubernetes-bound endpoint URL format: [http|tcp]://name.namespace[:port]
 // Supports formats:
-//   - my-app.ngrok.app
-//   - my-app.ngrok.app:443
-//   - https://my-app.ngrok.app
-//   - tls://my-app.ngrok.app
+//   - http://app.example
+//   - http://app.example:8080
+//   - tcp://app.example:443
 func parseAddress(address string) (hostname string, port int, err error) {
 	// Check if it's a URL
 	if strings.Contains(address, "://") {
@@ -38,14 +41,14 @@ func parseAddress(address string) (hostname string, port int, err error) {
 				return "", 0, fmt.Errorf("invalid port: %w", err)
 			}
 		} else {
-			// Default ports by scheme
+			// Default ports by scheme (k8s bindings only support http/tcp)
 			switch u.Scheme {
-			case "https", "tls":
-				port = 443
 			case "http":
 				port = 80
+			case "tcp":
+				return "", 0, fmt.Errorf("tcp scheme requires explicit port")
 			default:
-				port = 443
+				port = 80
 			}
 		}
 		return hostname, port, nil
@@ -61,8 +64,8 @@ func parseAddress(address string) (hostname string, port int, err error) {
 		return hostname, port, nil
 	}
 
-	// Just hostname, default to 443
-	return address, 443, nil
+	// Just hostname, default to 80 (http)
+	return address, 80, nil
 }
 
 // discoverEndpoints fetches bound endpoints from ngrok API

@@ -31,7 +31,7 @@ NGROK_AUTHTOKEN=xxxx go run examples/server/main.go
 
 You should see:
 ```
-Endpoint online: https://hello-server.example
+Endpoint online: http://hello-server.example
 ```
 
 ### Step 2: Run the Client
@@ -45,8 +45,8 @@ NGROK_API_KEY=xxxx go run examples/client/main.go
 You should see:
 ```
 Found 1 endpoint(s)
-  - https://hello-server.example
-Connecting to https://hello-server.example...
+  - http://hello-server.example
+Connecting to http://hello-server.example...
   Status: 200
   Body: Hello from ngrokd-go!
 ```

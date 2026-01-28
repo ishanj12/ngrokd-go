@@ -7,11 +7,11 @@ import (
 	"strings"
 )
 
-// Endpoint represents a bound endpoint in ngrok
+// Endpoint represents a kubernetes-bound endpoint in ngrok
 type Endpoint struct {
 	ID       string
 	Hostname string
-	Proto    string // "http", "https", "tcp", "tls"
+	Proto    string // "http" or "tcp" (https/tls not supported for k8s bindings)
 	Port     int
 	URL      string
 }

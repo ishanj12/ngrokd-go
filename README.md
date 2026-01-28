@@ -21,7 +21,7 @@ go get github.com/ishanj12/ngrokd-go
 
 ## Quickstart
 
-This example shows complete end-to-end, private connectivity:
+This example shows complete end-to-end, private connectivity in a simple, POC friendly manner:
 
 1. **Server** creates an internal agent endpoint (`.internal`) via the [ngrok-go SDK](https://github.com/ngrok/ngrok-go/tree/main), serving a local hello world web app running on port 8080
 2. **Private Cloud Endpoint** forwards traffic to the internal agent endpoint using the `forward-internal` traffic policy action

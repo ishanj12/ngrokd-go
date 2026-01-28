@@ -33,7 +33,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	// Create HTTP client with ngrokd transport
+    // Create HTTP client using ngrokd dialer
 	httpClient := &http.Client{
 		Transport: &http.Transport{DialContext: dialer.DialContext},
 		Timeout:   30 * time.Second,

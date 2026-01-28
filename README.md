@@ -106,7 +106,7 @@ See [ngrok Cloud Endpoints docs](https://ngrok.com/docs/universal-gateway/cloud-
 The client uses ngrokd-go to discover the kubernetes-bound endpoint and dial into it.
 
 ```sh
-NGROK_API_KEY=xxxx TARGET_URL=https://hello.example go run examples/client/main.go
+NGROK_API_KEY=xxxx go run examples/client/main.go
 ```
 
 ```go
@@ -119,7 +119,6 @@ import (
 	"log"
 	"net"
 	"net/http"
-	"os"
 	"time"
 
 	ngrokd "github.com/ishanj12/ngrokd-go"
@@ -128,9 +127,6 @@ import (
 func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-
-	// Target URL - the kubernetes-bound endpoint
-	targetURL := os.Getenv("TARGET_URL")
 
 	// Create ngrokd dialer (uses NGROK_API_KEY env var)
 	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
@@ -141,23 +137,26 @@ func main() {
 	}
 	defer dialer.Close()
 
-	// Discover endpoints (populates the dialer's cache)
-	dialer.DiscoverEndpoints(ctx)
+	// Discover kubernetes-bound endpoints
+	endpoints, _ := dialer.DiscoverEndpoints(ctx)
+	log.Printf("Found %d endpoint(s)", len(endpoints))
 
 	// Create HTTP client with ngrokd transport
 	httpClient := &http.Client{
 		Transport: &http.Transport{DialContext: dialer.DialContext},
 	}
 
-	// Connect to the target endpoint
-	resp, err := httpClient.Get(targetURL)
-	if err != nil {
-		log.Fatal(err)
+	// Connect to discovered endpoints
+	for _, ep := range endpoints {
+		resp, err := httpClient.Get(ep.URL)
+		if err != nil {
+			log.Printf("Error: %v", err)
+			continue
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		fmt.Printf("Status: %d\nBody: %s\n", resp.StatusCode, string(body))
 	}
-	defer resp.Body.Close()
-
-	body, _ := io.ReadAll(resp.Body)
-	fmt.Printf("Status: %d\nBody: %s\n", resp.StatusCode, string(body))
 }
 ```
 

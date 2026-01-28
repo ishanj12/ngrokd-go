@@ -22,13 +22,15 @@ go get github.com/ishanj12/ngrokd-go
 
 ## Quickstart
 
-This example shows a complete end-to-end flow with a server creating an internal endpoint and a client connecting to it.
+This example shows a complete end-to-end flow:
 
-### Server
+1. **Server** creates an internal agent endpoint (`.internal`)
+2. **Cloud Endpoint** forwards traffic to the internal endpoint using `forward-internal`
+3. **Client** discovers the kubernetes-bound cloud endpoint and dials into it
+
+### Step 1: Start the Server
 
 The server uses [ngrok-go](https://github.com/ngrok/ngrok-go) to create an internal agent endpoint that forwards to a hello world app.
-
-Run the server with:
 
 ```sh
 NGROK_AUTHTOKEN=xxxx go run examples/server/main.go
@@ -57,7 +59,7 @@ func main() {
 		fmt.Fprintln(w, "Hello from ngrokd-go!")
 	}))
 
-	// Create internal agent endpoint (.internal = only accessible via binding ingress)
+	// Create internal agent endpoint (.internal = only accessible via forward-internal)
 	fwd, err := ngrok.Forward(ctx,
 		ngrok.WithUpstream("http://localhost:8080"),
 		ngrok.WithURL("https://hello-server.internal"),
@@ -71,11 +73,39 @@ func main() {
 }
 ```
 
-### Client
+### Step 2: Create a Kubernetes-Bound Cloud Endpoint
 
-The client uses ngrokd-go to discover the internal endpoint and dial into it.
+Create a cloud endpoint with `kubernetes` binding that forwards traffic to the internal endpoint using the [`forward-internal` action](https://ngrok.com/docs/traffic-policy/actions/forward-internal).
 
-Run the client with:
+First, create a traffic policy file:
+
+**`traffic-policy.yml`**
+```yaml
+on_http_request:
+  - actions:
+      - type: forward-internal
+        config:
+          url: https://hello-server.internal
+```
+
+Then create the kubernetes-bound cloud endpoint:
+
+```sh
+ngrok api endpoints create \
+  --bindings kubernetes \
+  --url "https://hello.example" \
+  --traffic-policy "$(cat traffic-policy.yml)"
+```
+
+This creates a kubernetes-bound endpoint that:
+- Is only accessible via the kubernetes binding ingress (not publicly addressable)
+- Forwards all traffic to your internal agent endpoint at `https://hello-server.internal`
+
+See [ngrok Internal Endpoints docs](https://ngrok.com/docs/universal-gateway/internal-endpoints) for more details.
+
+### Step 3: Run the Client
+
+The client uses ngrokd-go to discover the kubernetes-bound endpoint and dial into it.
 
 ```sh
 NGROK_API_KEY=xxxx go run examples/client/main.go
@@ -130,6 +160,32 @@ func main() {
 		fmt.Printf("Status: %d\nBody: %s\n", resp.StatusCode, string(body))
 	}
 }
+```
+
+## Architecture
+
+```
+┌─────────────┐                         ┌──────────────────────────────────────┐                         ┌─────────────┐
+│             │      mTLS + binding     │              ngrok cloud             │                         │             │
+│   Client    │ ──────────────────────► │                                      │                         │   Server    │
+│ (ngrokd-go) │        protocol         │  ┌─────────────────────────────────┐ │      agent session      │  (ngrok-go) │
+│             │                         │  │  K8s-bound Cloud Endpoint       │ │ ◄────────────────────── │             │
+└─────────────┘                         │  │  https://hello.example          │ │                         │  Hello:8080 │
+      │                                 │  │  binding: kubernetes            │ │                         │             │
+      │ discovers via                   │  └───────────────┬─────────────────┘ │                         └─────────────┘
+      │ ngrok API                       │                  │                   │                               ▲
+      │                                 │                  │ forward-internal  │                               │
+      │                                 │                  ▼                   │                               │
+      │                                 │  ┌─────────────────────────────────┐ │      forwards to              │
+      │                                 │  │  Internal Agent Endpoint        │─┼───────────────────────────────┘
+      │                                 │  │  https://hello-server.internal  │ │      localhost:8080
+      │                                 │  │  binding: internal              │ │
+      │                                 │  └─────────────────────────────────┘ │
+      │                                 │                                      │
+      └────────────────────────────────►│  ┌─────────────────────────────────┐ │
+                                        │  │  Kubernetes Binding Ingress     │ │
+                                        │  └─────────────────────────────────┘ │
+                                        └──────────────────────────────────────┘
 ```
 
 ## Examples

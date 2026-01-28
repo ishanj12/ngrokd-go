@@ -88,7 +88,7 @@ func NewDialer(ctx context.Context, cfg Config) (*Dialer, error) {
 	}
 
 	// Start background refresh if configured
-	if cfg.RefreshInterval > 0 {
+	if cfg.PollingInterval > 0 {
 		d.wg.Add(1)
 		go d.refreshLoop()
 	}
@@ -96,11 +96,11 @@ func NewDialer(ctx context.Context, cfg Config) (*Dialer, error) {
 	return d, nil
 }
 
-// refreshLoop runs background endpoint discovery at RefreshInterval
+// refreshLoop runs background endpoint discovery at PollingInterval
 func (d *Dialer) refreshLoop() {
 	defer d.wg.Done()
 
-	ticker := time.NewTicker(d.config.RefreshInterval)
+	ticker := time.NewTicker(d.config.PollingInterval)
 	defer ticker.Stop()
 
 	for {

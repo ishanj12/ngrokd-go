@@ -83,28 +83,4 @@ Connecting to https://hello.example...
   Body: Hello from ngrokd-go!
 ```
 
-## Architecture
 
-```
-┌─────────────┐                         ┌──────────────────────────────────────┐                         ┌─────────────┐
-│             │      mTLS + binding     │              ngrok cloud             │                         │             │
-│   Client    │ ──────────────────────► │                                      │                         │   Server    │
-│ (ngrokd-go) │        protocol         │  ┌─────────────────────────────────┐ │      agent session      │  (ngrok-go) │
-│             │                         │  │  K8s-bound Cloud Endpoint       │ │ ◄────────────────────── │             │
-└─────────────┘                         │  │  https://hello.example          │ │                         │  Hello:8080 │
-      │                                 │  │  binding: kubernetes            │ │                         │             │
-      │ discovers via                   │  └───────────────┬─────────────────┘ │                         └─────────────┘
-      │ ngrok API                       │                  │                   │                               ▲
-      │                                 │                  │ forward-internal  │                               │
-      │                                 │                  ▼                   │                               │
-      │                                 │  ┌─────────────────────────────────┐ │      forwards to              │
-      │                                 │  │  Internal Agent Endpoint        │─┼───────────────────────────────┘
-      │                                 │  │  https://hello-server.internal  │ │      localhost:8080
-      │                                 │  │  binding: internal              │ │
-      │                                 │  └─────────────────────────────────┘ │
-      │                                 │                                      │
-      └────────────────────────────────►│  ┌─────────────────────────────────┐ │
-                                        │  │  Kubernetes Binding Ingress     │ │
-                                        │  └─────────────────────────────────┘ │
-                                        └──────────────────────────────────────┘
-```

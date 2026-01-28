@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 	"time"
 
 	ngrokd "github.com/ishanj12/ngrokd-go"
@@ -21,6 +22,12 @@ func main() {
 func run(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
+
+	// Target URL - the kubernetes-bound endpoint forwarding to hello-server
+	targetURL := os.Getenv("TARGET_URL")
+	if targetURL == "" {
+		targetURL = "https://hello.example"
+	}
 
 	// Create ngrokd dialer (uses NGROK_API_KEY env var)
 	dialer, err := ngrokd.NewDialer(ctx, ngrokd.Config{
@@ -40,13 +47,10 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	if len(endpoints) == 0 {
-		log.Println("No endpoints found. Run server first:")
-		log.Println("  NGROK_AUTHTOKEN=xxx go run examples/server/main.go")
-		return nil
-	}
-
 	log.Printf("Found %d endpoint(s)", len(endpoints))
+	for _, ep := range endpoints {
+		log.Printf("  - %s", ep.URL)
+	}
 
 	// Create HTTP client with ngrokd transport
 	httpClient := &http.Client{
@@ -54,20 +58,17 @@ func run(ctx context.Context) error {
 		Timeout:   30 * time.Second,
 	}
 
-	for _, ep := range endpoints {
-		log.Printf("Connecting to %s...", ep.URL)
+	// Connect to the target endpoint
+	log.Printf("Connecting to %s...", targetURL)
 
-		resp, err := httpClient.Get(ep.URL)
-		if err != nil {
-			log.Printf("  Error: %v", err)
-			continue
-		}
-
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		fmt.Printf("  Status: %d\n  Body: %s\n", resp.StatusCode, string(body))
+	resp, err := httpClient.Get(targetURL)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
 	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	fmt.Printf("Status: %d\nBody: %s\n", resp.StatusCode, string(body))
 
 	return nil
 }

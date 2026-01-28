@@ -1,9 +1,8 @@
 # ngrokd-go
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/ishanj12/ngrokd-go.svg)](https://pkg.go.dev/github.com/ishanj12/ngrokd-go)
 [![MIT licensed](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/ishanj12/ngrokd-go/blob/main/LICENSE)
 
-A Go SDK for connecting to services via ngrok's kubernetes-bound endpoints. Instead of running the [ngrokd daemon](https://ngrokd.ngrok.app/), embed this library directly in your Go application.
+A Go SDK for connecting to remote services via ngrok's private endpoints. Instead of running the [ngrokd daemon](https://ngrokd.ngrok.app/), embed this library directly in your Go application.
 
 ngrokd-go enables you to dial into private ngrok endpoints from anywhere. It handles mTLS certificate provisioning, endpoint discovery, and the binding protocol automatically.
 
@@ -22,11 +21,11 @@ go get github.com/ishanj12/ngrokd-go
 
 ## Quickstart
 
-This example shows a complete end-to-end flow:
+This example shows complete end-to-end, private connectivity:
 
-1. **Server** creates an internal agent endpoint (`.internal`)
-2. **Cloud Endpoint** forwards traffic to the internal endpoint using `forward-internal`
-3. **Client** discovers the kubernetes-bound cloud endpoint and dials into it
+1. **Server** creates an internal agent endpoint (`.internal`) via the [ngrok-go SDK](https://github.com/ngrok/ngrok-go/tree/main), serving a local hello world web app running on port 8080
+2. **Private Cloud Endpoint** forwards traffic to the internal agent endpoint using the `forward-internal` traffic policy action
+3. **Client** discovers the private cloud endpoint and dials into it
 
 ### Step 1: Start the Server
 
@@ -73,7 +72,7 @@ func main() {
 }
 ```
 
-### Step 2: Create a Kubernetes-Bound Cloud Endpoint
+### Step 2: Create a Private Cloud Endpoint
 
 Create a cloud endpoint with `kubernetes` binding that forwards traffic to the internal endpoint using the [`forward-internal` action](https://ngrok.com/docs/traffic-policy/actions/forward-internal).
 
@@ -95,15 +94,15 @@ Create a cloud endpoint with `kubernetes` binding that forwards traffic to the i
    ```
 6. Click **Create**
 
-This creates a kubernetes-bound endpoint that:
-- Is only accessible via the kubernetes binding ingress (not publicly addressable)
+This creates a private endpoint that:
+- Is only accessible from your local application running the ngrokd-go SDK, and is not publicly addressable on the internet
 - Forwards all traffic to your internal agent endpoint at `https://hello-server.internal`
 
 See [ngrok Cloud Endpoints docs](https://ngrok.com/docs/universal-gateway/cloud-endpoints) for more details.
 
 ### Step 3: Run the Client
 
-The client uses ngrokd-go to discover the kubernetes-bound endpoint and dial into it.
+The client uses ngrokd-go to discover the private endpoint and dial into it.
 
 ```sh
 NGROK_API_KEY=xxxx go run examples/client/main.go
@@ -160,36 +159,10 @@ func main() {
 }
 ```
 
-## Architecture
-
-```
-┌─────────────┐                         ┌──────────────────────────────────────┐                         ┌─────────────┐
-│             │      mTLS + binding     │              ngrok cloud             │                         │             │
-│   Client    │ ──────────────────────► │                                      │                         │   Server    │
-│ (ngrokd-go) │        protocol         │  ┌─────────────────────────────────┐ │      agent session      │  (ngrok-go) │
-│             │                         │  │  K8s-bound Cloud Endpoint       │ │ ◄────────────────────── │             │
-└─────────────┘                         │  │  https://hello.example          │ │                         │  Hello:8080 │
-      │                                 │  │  binding: kubernetes            │ │                         │             │
-      │ discovers via                   │  └───────────────┬─────────────────┘ │                         └─────────────┘
-      │ ngrok API                       │                  │                   │                               ▲
-      │                                 │                  │ forward-internal  │                               │
-      │                                 │                  ▼                   │                               │
-      │                                 │  ┌─────────────────────────────────┐ │      forwards to              │
-      │                                 │  │  Internal Agent Endpoint        │─┼───────────────────────────────┘
-      │                                 │  │  https://hello-server.internal  │ │      localhost:8080
-      │                                 │  │  binding: internal              │ │
-      │                                 │  └─────────────────────────────────┘ │
-      │                                 │                                      │
-      └────────────────────────────────►│  ┌─────────────────────────────────┐ │
-                                        │  │  Kubernetes Binding Ingress     │ │
-                                        │  └─────────────────────────────────┘ │
-                                        └──────────────────────────────────────┘
-```
-
 ## Examples
 
 - [Server](./examples/server/) - Create an internal agent endpoint with ngrok-go.
-- [Client](./examples/client/) - Discover and dial endpoints with ngrokd-go.
+- [Client](./examples/client/) - Discover and dial private endpoints with ngrokd-go.
 
 ## Configuration
 

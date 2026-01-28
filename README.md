@@ -91,7 +91,7 @@ Create a cloud endpoint with `kubernetes` binding that forwards traffic to the i
 2. Click **+ New Endpoint**
 3. Choose **Cloud Endpoint**
 4. Configure:
-   - **URL**: `https://hello.example` (or any name you prefer)
+   - **URL**: `https://hello.example` (or any URL you prefer with a `proto://a.b` pattern)
    - **Binding**: Select `kubernetes`
 5. Add the following **Traffic Policy**:
    ```yaml

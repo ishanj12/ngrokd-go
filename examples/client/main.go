@@ -32,8 +32,6 @@ func run(ctx context.Context) error {
 	}
 	defer dialer.Close()
 
-	log.Println("Operator ID:", dialer.OperatorID())
-
 	// Discover kubernetes-bound endpoints
 	endpoints, err := dialer.DiscoverEndpoints(ctx)
 	if err != nil {

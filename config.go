@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"net"
+	"os"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -91,6 +92,10 @@ type ContextDialer interface {
 }
 
 func (c *Config) setDefaults() {
+	// Read API key from environment if not set
+	if c.APIKey == "" {
+		c.APIKey = os.Getenv("NGROK_API_KEY")
+	}
 	if c.CertStore == nil {
 		dir := c.CertDir
 		if dir == "" {

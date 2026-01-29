@@ -47,16 +47,16 @@ See [examples/](./examples/) for a complete end-to-end demo with server and clie
 
 ```go
 ngrokd.Config{
-	// Required: ngrok API key (or set NGROK_API_KEY env var)
+	// Required: ngrok API key 
 	APIKey: "your-api-key",
 
-	// Routes non-ngrok traffic to standard dialer (default: &net.Dialer{})
+	// Routes non-ngrok traffic to standard dialer 
 	DefaultDialer: &net.Dialer{},
 
-	// Background endpoint refresh interval (default: 30s)
+	// Background endpoint refresh interval 
 	PollingInterval: 30 * time.Second,
 
-	// Filter endpoints with CEL expressions (default: all)
+	// Filter endpoints with CEL expressions 
 	EndpointSelectors: []string{"endpoint.metadata.name == 'my-service'"},
 }
 ```

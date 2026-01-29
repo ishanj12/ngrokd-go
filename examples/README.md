@@ -44,8 +44,6 @@ NGROK_API_KEY=xxxx go run examples/client/main.go
 
 You should see:
 ```
-Found 1 endpoint(s)
-  - http://hello-server.example
 Connecting to http://hello-server.example...
   Status: 200
   Body: Hello from ngrokd-go!

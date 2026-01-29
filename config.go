@@ -26,14 +26,10 @@ type Config struct {
 	TLSCert tls.Certificate
 
 	// CertStore is the storage backend for certificates.
-	// Default: FileStore at ~/.ngrokd-sdk/certs
+	// Default: FileStore at ~/.ngrokd-go/certs
 	// Use MemoryStore for ephemeral environments, or implement
 	// CertStore for AWS Secrets Manager, Vault, etc.
 	CertStore CertStore
-
-	// CertDir is the directory for FileStore (deprecated, use CertStore).
-	// If CertStore is nil and CertDir is set, FileStore is used.
-	CertDir string
 
 	// IngressEndpoint is the ngrok ingress endpoint
 	// Default: kubernetes-binding-ingress.ngrok.io:443
@@ -43,9 +39,9 @@ type Config struct {
 	// If nil, system roots are used (with fallback to InsecureSkipVerify)
 	RootCAs *x509.CertPool
 
-	// DialTimeout is the timeout for establishing connections
-	// Default: 30s
-	DialTimeout time.Duration
+	// IngressDialer dials the ngrok ingress endpoint.
+	// If nil, uses net.Dialer with 30s timeout.
+	IngressDialer ContextDialer
 
 	// Logger for structured logging
 	Logger logr.Logger
@@ -64,26 +60,6 @@ type Config struct {
 	// Default: 30 seconds
 	PollingInterval time.Duration
 
-	// RetryConfig configures retry behavior for transient failures
-	RetryConfig RetryConfig
-}
-
-// RetryConfig configures exponential backoff retry behavior
-type RetryConfig struct {
-	// MaxRetries is the maximum number of retry attempts (0 = no retries)
-	MaxRetries int
-
-	// InitialBackoff is the initial backoff duration
-	// Default: 100ms
-	InitialBackoff time.Duration
-
-	// MaxBackoff is the maximum backoff duration
-	// Default: 10s
-	MaxBackoff time.Duration
-
-	// BackoffMultiplier is the multiplier for exponential backoff
-	// Default: 2.0
-	BackoffMultiplier float64
 }
 
 // ContextDialer matches the net.Dialer.DialContext signature
@@ -97,17 +73,13 @@ func (c *Config) setDefaults() {
 		c.APIKey = os.Getenv("NGROK_API_KEY")
 	}
 	if c.CertStore == nil {
-		dir := c.CertDir
-		if dir == "" {
-			dir = defaultCertDir()
-		}
-		c.CertStore = NewFileStore(dir)
+		c.CertStore = NewFileStore(defaultCertDir())
 	}
 	if c.IngressEndpoint == "" {
 		c.IngressEndpoint = "kubernetes-binding-ingress.ngrok.io:443"
 	}
-	if c.DialTimeout == 0 {
-		c.DialTimeout = 30 * time.Second
+	if c.IngressDialer == nil {
+		c.IngressDialer = &net.Dialer{Timeout: 30 * time.Second}
 	}
 	if c.PollingInterval == 0 {
 		c.PollingInterval = 30 * time.Second
@@ -117,18 +89,5 @@ func (c *Config) setDefaults() {
 	}
 	if c.DefaultDialer == nil {
 		c.DefaultDialer = &net.Dialer{}
-	}
-	c.RetryConfig.setDefaults()
-}
-
-func (r *RetryConfig) setDefaults() {
-	if r.InitialBackoff == 0 {
-		r.InitialBackoff = 100 * time.Millisecond
-	}
-	if r.MaxBackoff == 0 {
-		r.MaxBackoff = 10 * time.Second
-	}
-	if r.BackoffMultiplier == 0 {
-		r.BackoffMultiplier = 2.0
 	}
 }

@@ -7,88 +7,97 @@ import (
 	"net"
 )
 
-// ConnRequest is the binding protocol request
-type ConnRequest struct {
-	Host string
-	Port int64
+// upgradeToBinding upgrades a connection using the binding protocol.
+// Returns endpointID and proto on success.
+func upgradeToBinding(conn net.Conn, host string, port int) (endpointID, proto string, err error) {
+	if err := writeBindingRequest(conn, host, port); err != nil {
+		return "", "", fmt.Errorf("failed to write request: %w", err)
+	}
+
+	endpointID, proto, errorCode, errorMessage, err := readBindingResponse(conn)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to read response: %w", err)
+	}
+
+	if errorCode != "" || errorMessage != "" {
+		return "", "", fmt.Errorf("binding error [%s]: %s", errorCode, errorMessage)
+	}
+
+	return endpointID, proto, nil
 }
 
-// ConnResponse is the binding protocol response
-type ConnResponse struct {
-	EndpointID   string
-	Proto        string
-	ErrorCode    string
-	ErrorMessage string
-}
-
-// MarshalBinary implements proto.Message-like encoding for ConnRequest
-func (r *ConnRequest) marshal() ([]byte, error) {
-	// Manual protobuf encoding for simplicity (avoids generated code dependency)
-	// Field 1: Host (string) - wire type 2 (length-delimited)
-	// Field 2: Port (int64) - wire type 0 (varint)
-	
+func writeBindingRequest(conn net.Conn, host string, port int) error {
+	// Manual protobuf encoding
+	// Field 1: host (string) - wire type 2 (length-delimited)
+	// Field 2: port (int64) - wire type 0 (varint)
 	var buf []byte
-	
-	// Field 1: Host
-	if r.Host != "" {
+
+	if host != "" {
 		buf = append(buf, 0x0a) // field 1, wire type 2
-		buf = appendVarint(buf, uint64(len(r.Host)))
-		buf = append(buf, r.Host...)
+		buf = appendVarint(buf, uint64(len(host)))
+		buf = append(buf, host...)
 	}
-	
-	// Field 2: Port
-	if r.Port != 0 {
+
+	if port != 0 {
 		buf = append(buf, 0x10) // field 2, wire type 0
-		buf = appendVarint(buf, uint64(r.Port))
+		buf = appendVarint(buf, uint64(port))
 	}
-	
-	return buf, nil
+
+	length := uint16(len(buf))
+	if err := binary.Write(conn, binary.LittleEndian, length); err != nil {
+		return err
+	}
+
+	_, err := conn.Write(buf)
+	return err
 }
 
-func (r *ConnResponse) unmarshal(data []byte) error {
+func readBindingResponse(conn net.Conn) (endpointID, proto, errorCode, errorMessage string, err error) {
+	var length uint16
+	if err := binary.Read(conn, binary.LittleEndian, &length); err != nil {
+		return "", "", "", "", err
+	}
+
+	buf := make([]byte, length)
+	if _, err := io.ReadFull(conn, buf); err != nil {
+		return "", "", "", "", err
+	}
+
 	// Manual protobuf decoding
-	// Field 1: EndpointID (string)
-	// Field 2: Proto (string)
-	// Field 3: ErrorCode (string)
-	// Field 4: ErrorMessage (string)
-	
+	// Field 1: endpointID, 2: proto, 3: errorCode, 4: errorMessage
 	pos := 0
-	for pos < len(data) {
-		if pos >= len(data) {
-			break
-		}
-		
-		tag := data[pos]
+	for pos < len(buf) {
+		tag := buf[pos]
 		fieldNum := tag >> 3
 		wireType := tag & 0x07
 		pos++
-		
+
 		switch wireType {
 		case 0: // varint
-			_, n := consumeVarint(data[pos:])
+			_, n := consumeVarint(buf[pos:])
 			pos += n
 		case 2: // length-delimited
-			length, n := consumeVarint(data[pos:])
+			length, n := consumeVarint(buf[pos:])
 			pos += n
-			value := string(data[pos : pos+int(length)])
+			value := string(buf[pos : pos+int(length)])
 			pos += int(length)
-			
+
 			switch fieldNum {
 			case 1:
-				r.EndpointID = value
+				endpointID = value
 			case 2:
-				r.Proto = value
+				proto = value
 			case 3:
-				r.ErrorCode = value
+				errorCode = value
 			case 4:
-				r.ErrorMessage = value
+				errorMessage = value
 			}
 		default:
-			return fmt.Errorf("unsupported wire type: %d", wireType)
+			return "", "", "", "", fmt.Errorf("unsupported wire type: %d", wireType)
 		}
 	}
-	
-	return nil
+
+	return endpointID, proto, errorCode, errorMessage, nil
 }
 
 func appendVarint(buf []byte, v uint64) []byte {
@@ -109,56 +118,3 @@ func consumeVarint(data []byte) (uint64, int) {
 	}
 	return v, len(data)
 }
-
-// upgradeToBinding upgrades a connection using the binding protocol
-func upgradeToBinding(conn net.Conn, host string, port int) (*ConnResponse, error) {
-	req := &ConnRequest{Host: host, Port: int64(port)}
-	
-	// Write request
-	if err := writeProtoMessage(conn, req); err != nil {
-		return nil, fmt.Errorf("failed to write request: %w", err)
-	}
-	
-	// Read response
-	resp := &ConnResponse{}
-	if err := readProtoMessage(conn, resp); err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-	
-	if resp.ErrorCode != "" || resp.ErrorMessage != "" {
-		return nil, fmt.Errorf("binding error [%s]: %s", resp.ErrorCode, resp.ErrorMessage)
-	}
-	
-	return resp, nil
-}
-
-func writeProtoMessage(conn net.Conn, req *ConnRequest) error {
-	buf, err := req.marshal()
-	if err != nil {
-		return err
-	}
-	
-	length := uint16(len(buf))
-	if err := binary.Write(conn, binary.LittleEndian, length); err != nil {
-		return err
-	}
-	
-	_, err = conn.Write(buf)
-	return err
-}
-
-func readProtoMessage(conn net.Conn, resp *ConnResponse) error {
-	var length uint16
-	if err := binary.Read(conn, binary.LittleEndian, &length); err != nil {
-		return err
-	}
-	
-	buf := make([]byte, length)
-	if _, err := io.ReadFull(conn, buf); err != nil {
-		return err
-	}
-	
-	return resp.unmarshal(buf)
-}
-
-

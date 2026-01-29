@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"math/rand"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -159,66 +158,11 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 		return nil, &EndpointNotFoundError{Hostname: hostname}
 	}
 
-	// Dial with retry if configured
-	return d.dialWithRetry(ctx, hostname, port)
+	return d.dial(ctx, hostname, port)
 }
 
-// dialWithRetry attempts to dial with exponential backoff
-func (d *Dialer) dialWithRetry(ctx context.Context, hostname string, port int) (net.Conn, error) {
-	cfg := d.config.RetryConfig
-	var lastErr error
-
-	for attempt := 0; attempt <= cfg.MaxRetries; attempt++ {
-		if attempt > 0 {
-			backoff := d.calculateBackoff(attempt, cfg)
-			if d.logger.Enabled() {
-				d.logger.V(1).Info("Retrying dial", "attempt", attempt, "backoff", backoff)
-			}
-
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-d.closeCh:
-				return nil, ErrClosed
-			case <-time.After(backoff):
-			}
-		}
-
-		conn, err := d.dialOnce(ctx, hostname, port)
-		if err == nil {
-			return conn, nil
-		}
-		lastErr = err
-
-		// Don't retry context errors
-		if ctx.Err() != nil {
-			return nil, ctx.Err()
-		}
-	}
-
-	return nil, lastErr
-}
-
-// calculateBackoff returns the backoff duration for the given attempt
-func (d *Dialer) calculateBackoff(attempt int, cfg RetryConfig) time.Duration {
-	backoff := float64(cfg.InitialBackoff)
-	for i := 1; i < attempt; i++ {
-		backoff *= cfg.BackoffMultiplier
-	}
-
-	// Add jitter (±25%)
-	jitter := (rand.Float64() - 0.5) * 0.5 * backoff
-	backoff += jitter
-
-	if backoff > float64(cfg.MaxBackoff) {
-		backoff = float64(cfg.MaxBackoff)
-	}
-
-	return time.Duration(backoff)
-}
-
-// dialOnce performs a single dial attempt
-func (d *Dialer) dialOnce(ctx context.Context, hostname string, port int) (net.Conn, error) {
+// dial connects to the ngrok ingress and upgrades to the binding protocol
+func (d *Dialer) dial(ctx context.Context, hostname string, port int) (net.Conn, error) {
 	if d.logger.Enabled() {
 		d.logger.V(1).Info("Dialing via ngrok", "hostname", hostname, "port", port)
 	}
@@ -238,42 +182,31 @@ func (d *Dialer) dialOnce(ctx context.Context, hostname string, port int) (net.C
 		tlsConfig.InsecureSkipVerify = true
 	}
 
-	dialer := &tls.Dialer{
-		NetDialer: &net.Dialer{
-			Timeout: d.config.DialTimeout,
-		},
-		Config: tlsConfig,
+	// Dial TCP, then wrap with TLS
+	address := d.config.IngressEndpoint
+	tcpConn, err := d.config.IngressDialer.DialContext(ctx, "tcp", address)
+	if err != nil {
+		return nil, fmt.Errorf("dial %s: %w", address, err)
 	}
 
-	address := d.config.IngressEndpoint
-	conn, err := dialer.DialContext(ctx, "tcp", address)
-	if err != nil {
-		return nil, &DialError{Address: address, Cause: err}
+	tlsConn := tls.Client(tcpConn, tlsConfig)
+	if err := tlsConn.HandshakeContext(ctx); err != nil {
+		tcpConn.Close()
+		return nil, fmt.Errorf("TLS handshake %s: %w", address, err)
 	}
 
 	// Upgrade connection with binding protocol
-	resp, err := upgradeToBinding(conn, hostname, port)
+	endpointID, proto, err := upgradeToBinding(tlsConn, hostname, port)
 	if err != nil {
-		conn.Close()
-		return nil, &UpgradeError{Hostname: hostname, Port: port, Cause: err}
-	}
-
-	if resp.ErrorCode != "" || resp.ErrorMessage != "" {
-		conn.Close()
-		return nil, &UpgradeError{
-			Hostname: hostname,
-			Port:     port,
-			Message:  fmt.Sprintf("[%s] %s", resp.ErrorCode, resp.ErrorMessage),
-		}
+		tlsConn.Close()
+		return nil, fmt.Errorf("upgrade %s:%d: %w", hostname, port, err)
 	}
 
 	if d.logger.Enabled() {
-		d.logger.V(1).Info("Connection upgraded",
-			"endpointID", resp.EndpointID,
-			"proto", resp.Proto)
+		d.logger.V(1).Info("Connection upgraded", "endpointID", endpointID, "proto", proto)
 	}
 
-	return conn, nil
+	return tlsConn, nil
 }
 
 // DiscoverEndpoints fetches and caches bound endpoints from ngrok API
@@ -291,7 +224,7 @@ func (d *Dialer) DiscoverEndpoints(ctx context.Context) ([]Endpoint, error) {
 	d.mu.Lock()
 	d.endpoints = make(map[string]Endpoint, len(endpoints))
 	for _, ep := range endpoints {
-		d.endpoints[ep.Hostname] = ep
+		d.endpoints[ep.Hostname()] = ep
 	}
 	d.mu.Unlock()
 

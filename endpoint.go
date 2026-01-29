@@ -8,25 +8,24 @@ import (
 )
 
 // Endpoint represents a private endpoint in ngrok.
-// URL format: [http|tcp|tls]://name.namespace[:port]
-// Hostnames must be exactly two parts separated by a dot (e.g., app.example).
 type Endpoint struct {
-	ID       string
-	Hostname string
-	Proto    string // "http", "tcp", or "tls"
-	Port     int    // required for tcp/tls, optional for http (defaults to 80)
-	URL      string
+	ID  string
+	URL *url.URL
+}
+
+// Hostname returns the hostname from the endpoint URL.
+func (e Endpoint) Hostname() string {
+	return e.URL.Hostname()
 }
 
 // parseAddress parses an address string into hostname and port.
-// Private endpoint URL format: [http|tcp|tls]://name.namespace[:port]
 // Supports formats:
 //   - http://app.example
 //   - http://app.example:8080
 //   - tcp://app.example:443
-//   - tls://app.example:443
+//   - app.example:8080
+//   - app.example
 func parseAddress(address string) (hostname string, port int, err error) {
-	// Check if it's a URL
 	if strings.Contains(address, "://") {
 		u, err := url.Parse(address)
 		if err != nil {
@@ -41,7 +40,6 @@ func parseAddress(address string) (hostname string, port int, err error) {
 				return "", 0, fmt.Errorf("invalid port: %w", err)
 			}
 		} else {
-			// Default ports by scheme
 			switch u.Scheme {
 			case "http":
 				port = 80
@@ -54,7 +52,7 @@ func parseAddress(address string) (hostname string, port int, err error) {
 		return hostname, port, nil
 	}
 
-	// Check for host:port format
+	// host:port format
 	if idx := strings.LastIndex(address, ":"); idx != -1 {
 		hostname = address[:idx]
 		portStr := address[idx+1:]
@@ -64,7 +62,7 @@ func parseAddress(address string) (hostname string, port int, err error) {
 		return hostname, port, nil
 	}
 
-	// Just hostname, default to 80 (http)
+	// Just hostname, default to 80
 	return address, 80, nil
 }
 
@@ -79,7 +77,7 @@ func (d *Dialer) discoverEndpoints(ctx context.Context) ([]Endpoint, error) {
 		return nil, err
 	}
 
-	// Deduplicate by URL (ngrok API may return stale duplicates)
+	// Deduplicate by URL
 	seen := make(map[string]bool)
 	endpoints := make([]Endpoint, 0, len(apiEndpoints))
 	for _, ep := range apiEndpoints {
@@ -87,42 +85,17 @@ func (d *Dialer) discoverEndpoints(ctx context.Context) ([]Endpoint, error) {
 			continue
 		}
 		seen[ep.URL] = true
-		
-		hostname, port := extractHostPort(ep.URL)
+
+		u, err := url.Parse(ep.URL)
+		if err != nil {
+			continue
+		}
+
 		endpoints = append(endpoints, Endpoint{
-			ID:       ep.ID,
-			Hostname: hostname,
-			Proto:    ep.Proto,
-			Port:     port,
-			URL:      ep.URL,
+			ID:  ep.ID,
+			URL: u,
 		})
 	}
 
 	return endpoints, nil
-}
-
-// extractHostPort extracts hostname and port from an endpoint URL
-func extractHostPort(endpointURL string) (hostname string, port int) {
-	u, err := url.Parse(endpointURL)
-	if err != nil {
-		return endpointURL, 443
-	}
-
-	hostname = u.Hostname()
-	portStr := u.Port()
-
-	if portStr != "" {
-		fmt.Sscanf(portStr, "%d", &port)
-	} else {
-		switch u.Scheme {
-		case "https", "tls":
-			port = 443
-		case "http":
-			port = 80
-		default:
-			port = 443
-		}
-	}
-
-	return hostname, port
 }

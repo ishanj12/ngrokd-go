@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	ngrokd "github.com/ishanj12/ngrokd-go"
+	ngrokd "github.com/ngrok-oss/ngrokd-go"
 )
 
 func main() {

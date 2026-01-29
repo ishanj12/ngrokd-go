@@ -17,7 +17,7 @@ This example shows complete end-to-end, private connectivity:
 First, clone the repository:
 
 ```sh
-git clone https://github.com/ishanj12/ngrokd-go.git
+git clone https://github.com/ngrok-oss/ngrokd-go.git
 cd ngrokd-go
 ```
 

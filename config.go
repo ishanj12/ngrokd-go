@@ -83,7 +83,7 @@ func (c *Config) setDefaults() {
 	if len(c.EndpointSelectors) == 0 {
 		c.EndpointSelectors = []string{"true"}
 	}
-	if c.DefaultDialer == nil {
-		c.DefaultDialer = &net.Dialer{}
-	}
+	// Note: DefaultDialer is intentionally left nil by default.
+	// This causes DialContext to return EndpointNotFoundError for unknown
+	// endpoints rather than silently falling back to DNS.
 }

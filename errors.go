@@ -12,11 +12,14 @@ var (
 
 // EndpointNotFoundError is returned when an endpoint is not in cache
 type EndpointNotFoundError struct {
-	Hostname string
+	Hostname      string
+	OperatorID    string
+	KnownEndpoints []string
 }
 
 func (e *EndpointNotFoundError) Error() string {
-	return fmt.Sprintf("endpoint not found: %s", e.Hostname)
+	return fmt.Sprintf("endpoint not found: %s (operator=%s, known=%d endpoints: %v)",
+		e.Hostname, e.OperatorID, len(e.KnownEndpoints), e.KnownEndpoints)
 }
 
 func (e *EndpointNotFoundError) Is(target error) bool {

@@ -152,7 +152,11 @@ func (d *Dialer) DialContext(ctx context.Context, network, address string) (net.
 			}
 			return d.defaultDialer.DialContext(ctx, network, address)
 		}
-		return nil, &EndpointNotFoundError{Hostname: hostname}
+		return nil, &EndpointNotFoundError{
+			Hostname:       hostname,
+			OperatorID:     d.operatorID,
+			KnownEndpoints: d.knownEndpointNames(),
+		}
 	}
 
 	return d.dial(ctx, hostname, port)
@@ -244,12 +248,58 @@ func (d *Dialer) OperatorID() string {
 	return d.operatorID
 }
 
+// Diagnose returns diagnostic information about the dialer state
+func (d *Dialer) Diagnose(ctx context.Context) (*DiagnosticInfo, error) {
+	info := &DiagnosticInfo{
+		OperatorID:     d.operatorID,
+		KnownEndpoints: d.knownEndpointNames(),
+	}
+
+	if d.apiClient == nil {
+		return info, nil
+	}
+
+	// Fetch bound endpoints for this operator
+	if d.operatorID != "" {
+		endpoints, err := d.apiClient.ListBoundEndpoints(ctx, d.operatorID)
+		if err != nil {
+			info.BoundEndpointsError = err.Error()
+		} else {
+			info.BoundEndpoints = make([]string, len(endpoints))
+			for i, ep := range endpoints {
+				info.BoundEndpoints[i] = ep.URL
+			}
+		}
+	}
+
+	return info, nil
+}
+
+// DiagnosticInfo contains debugging information about the dialer
+type DiagnosticInfo struct {
+	OperatorID          string   `json:"operator_id"`
+	KnownEndpoints      []string `json:"known_endpoints"`
+	BoundEndpoints      []string `json:"bound_endpoints"`
+	BoundEndpointsError string   `json:"bound_endpoints_error,omitempty"`
+}
+
 // isKnownEndpoint checks if the hostname matches a cached ngrok endpoint
 func (d *Dialer) isKnownEndpoint(hostname string) bool {
 	d.mu.RLock()
 	defer d.mu.RUnlock()
 	_, exists := d.endpoints[hostname]
 	return exists
+}
+
+// knownEndpointNames returns all cached endpoint hostnames for debugging
+func (d *Dialer) knownEndpointNames() []string {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	names := make([]string, 0, len(d.endpoints))
+	for name := range d.endpoints {
+		names = append(names, name)
+	}
+	return names
 }
 
 // Close stops background goroutines and cleans up resources

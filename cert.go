@@ -110,8 +110,10 @@ func (p *certProvisioner) provisionCertificate(ctx context.Context) (tls.Certifi
 
 	certPEM := []byte(operator.Binding.Cert.Cert)
 
-	// Save to store
+	// Save to store - if this fails, clean up the operator we just created
 	if err := p.store.Save(ctx, privateKeyPEM, certPEM, operator.ID); err != nil {
+		// Best-effort cleanup to prevent orphaned operators
+		_ = p.apiClient.DeleteOperator(ctx, operator.ID)
 		return tls.Certificate{}, "", fmt.Errorf("failed to save certificate: %w", err)
 	}
 

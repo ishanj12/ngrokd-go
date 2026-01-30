@@ -204,3 +204,28 @@ func (c *apiClient) CreateOperator(ctx context.Context, req *operatorCreateReque
 
 	return &operator, nil
 }
+
+func (c *apiClient) DeleteOperator(ctx context.Context, operatorID string) error {
+	url := fmt.Sprintf("%s/kubernetes_operators/%s", c.baseURL, operatorID)
+
+	req, err := http.NewRequestWithContext(ctx, "DELETE", url, nil)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Authorization", "Bearer "+c.apiKey)
+	req.Header.Set("Ngrok-Version", apiVersion)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+	}
+
+	return nil
+}

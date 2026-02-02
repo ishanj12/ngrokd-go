@@ -30,8 +30,6 @@ func run(ctx context.Context) error {
 		return fmt.Errorf("failed to create dialer: %w", err)
 	}
 
-	log.Printf("Operator ID: %s", dialer.OperatorID())
-
 	// List available endpoints
 	endpoints, err := dialer.Endpoints(ctx)
 	if err != nil {
